@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ten Finger Trainer</title>
+<style>
+  :root {
+    --bg: #14161b; --panel: #1d2027; --line: #2e323c; --text: #e8eaf0; --dim: #8b91a0;
+    --good: #4ade80; --bad: #f87171; --warn: #fbbf24;
+    --lp: #f87171; --lr: #fb923c; --lm: #facc15; --li: #4ade80;
+    --ri: #22d3ee; --rm: #60a5fa; --rr: #a78bfa; --rp: #f472b6; --th: #d6dbe4;
+    --g: 6px; --k: min(52px, calc((100vw - 90px - 14 * var(--g)) / 14.5)); --u: calc(var(--k) + var(--g));
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  .opts { display: flex; gap: 16px; align-items: center; color: var(--dim); font-size: 14px; flex-wrap: wrap; }
+  .opts label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+
+  #lessons { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 16px 0; }
+  .lgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .lgroup .lab { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; margin-right: 2px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 8px;
+          padding: 6px 10px; font-size: 13px; cursor: pointer; min-width: 38px; }
+  .chip.on { border-color: var(--text); }
+  .chip.done { color: var(--good); }
+  .chip.locked { opacity: .35; cursor: not-allowed; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  #title { font-size: 18px; font-weight: 600; }
+  #sub { color: var(--dim); margin-top: 2px; }
+  #how { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 14px; color: var(--dim); }
+  #how:empty { display: none; }
+  #how b, #flash b { padding: 1px 7px; border-radius: 5px; color: #111; }
+
+  #prompt { font: 500 30px/1.5 ui-monospace, Menlo, monospace; letter-spacing: 1px; word-break: break-all; margin: 14px 0 6px; min-height: 90px; }
+  #prompt span { padding: 1px 0; border-bottom: 3px solid transparent; }
+  #prompt .w { display: inline-block; padding: 0; border: 0; }
+  #lenrow { display: flex; align-items: center; gap: 10px 22px; margin-top: 10px; color: var(--dim); font-size: 14px; flex-wrap: wrap; }
+  #lenrow label { display: flex; align-items: center; gap: 10px; }
+  #lenrow input { width: 220px; accent-color: var(--text); }
+  #lenrow b { color: var(--text); min-width: 30px; text-align: right; }
+  #prompt .ok { color: var(--dim); }
+  #prompt .cur { background: #ffffff1c; border-bottom-color: var(--text); border-radius: 3px; }
+  #prompt .cur.err { background: #f8717155; border-bottom-color: var(--bad); }
+
+  #hint { font-size: 20px; min-height: 30px; }
+  #hint b { padding: 2px 8px; border-radius: 6px; color: #111; }
+  #capswarn { display: none; margin-top: 6px; color: #111; background: var(--warn); border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+  #capswarn.show { display: block; }
+
+  /* keyboard */
+  #kb { display: flex; flex-direction: column; gap: var(--g); width: fit-content; margin: 0 auto; user-select: none; }
+  .row { display: flex; gap: var(--g); }
+  .key { flex: none; width: var(--k); height: var(--k); border-radius: calc(var(--k) * .17); display: grid; place-items: center;
+         font: 600 calc(var(--k) * .35) ui-monospace, Menlo, monospace;
+         color: #111; opacity: .38; border: 2px solid transparent; position: relative; transition: transform .08s, opacity .08s; }
+  .key .s { position: absolute; top: 7%; left: 12%; font-size: .62em; line-height: 1; }
+  .key .o { position: absolute; bottom: 7%; right: 10%; font-size: .58em; line-height: 1; display: none; }
+  .key.optshow .o { display: block; }
+  .key.mod, .key.space { font: 600 calc(var(--k) * .24) -apple-system, sans-serif; }
+  .key.dead { opacity: .14; }
+  .key.used { opacity: .8; }
+  .key.target { opacity: 1; transform: scale(1.14); border-color: #fff; box-shadow: 0 0 0 4px #ffffff40, 0 0 22px 2px var(--c); z-index: 2; }
+  .key.home::after { content: ""; position: absolute; bottom: 6px; width: 14px; height: 3px; border-radius: 2px; background: #111; opacity: .6; }
+  .key.pressbad { outline: 3px solid var(--bad); }
+  .guide #kb .key { opacity: .2; }
+  .guide #kb .key.target { opacity: 1; }
+
+  /* hands */
+  #hands { display: flex; justify-content: center; gap: 70px; margin-top: 8px; }
+  .hand { position: relative; width: 250px; height: 170px; }
+  .finger { position: absolute; bottom: 0; width: 38px; border-radius: 19px 19px 10px 10px; background: #343944; transition: background .1s, box-shadow .1s; display: grid; place-items: start center; padding-top: 6px; font: 600 11px ui-monospace, Menlo, monospace; color: #00000000; }
+  .finger.on { background: var(--c); box-shadow: 0 0 22px 3px var(--c); color: #111; }
+  .finger.th { background: #5b6272; color: #e8eaf0; width: 46px; padding-top: 10px; }
+  .finger.th.on { background: var(--c); color: #111; }
+  .palm { position: absolute; bottom: -24px; left: 6px; width: 238px; height: 80px; border-radius: 30px 30px 50px 50px; background: #2a2e37; }
+  .handlabel { text-align: center; color: var(--dim); font-size: 13px; margin-top: 30px; }
+  .handwrap { display: flex; flex-direction: column; align-items: center; }
+  .spacebar-note { text-align: center; color: var(--dim); font-size: 13px; margin-top: 4px; }
+
+  #flash { min-height: 24px; color: var(--bad); font-size: 17px; margin-top: 4px; }
+  #flash.soft { color: var(--warn); }
+  #trouble ul { margin: 8px 0 0; padding-left: 20px; }
+  #trouble li { margin-bottom: 6px; }
+  #trouble .chip2 { padding: 1px 7px; border-radius: 5px; color: #111; font-weight: 600; }
+  #trouble h3 { margin: 0; font-size: 16px; }
+  #trouble .dim { color: var(--dim); font-size: 14px; }
+  #stats { display: flex; gap: 22px; flex-wrap: wrap; color: var(--dim); }
+  #stats b { color: var(--text); font-size: 20px; }
+
+  button.big { background: var(--text); color: #111; border: 0; border-radius: 10px; padding: 10px 18px; font: 600 16px -apple-system, sans-serif; cursor: pointer; }
+  button.big.sec { background: var(--line); color: var(--text); }
+  .btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  #result { display: none; }
+  #result.show { display: block; }
+  .stars { font-size: 26px; letter-spacing: 4px; }
+
+  #setup { display: none; }
+  #setup.show { display: block; }
+  #setup li { margin-bottom: 6px; }
+  .overlay-note { color: var(--dim); font-size: 14px; }
+
+  @media (max-width: 760px) {
+    :root { --g: 3px; }
+    .key.home::after { bottom: 2px; width: 8px; height: 2px; }
+    #hands { gap: 8px; transform: scale(.62); transform-origin: top center; height: 140px; }
+    #prompt { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Ten Finger Trainer</h1>
+    <div class="opts">
+      <label>Keyboard
+        <select id="layout"><option value="fi">Finnish (ö ä å)</option><option value="us">US</option></select>
+      </label>
+      <label>Words
+        <select id="lang"><option value="both">Finnish and English</option><option value="fi">Finnish</option><option value="en">English</option></select>
+      </label>
+      <label><input type="checkbox" id="hideguide"> Hide key colors (test yourself)</label>
+    </div>
+  </header>
+
+  <div id="lessons"></div>
+
+  <div class="card" id="setup">
+    <div id="title0" style="font-size:18px;font-weight:600">Before you start: home position</div>
+    <ol>
+      <li>Left fingers rest on <b>A S D F</b>, right fingers on <b>J K L <span class="ocar"></span></b>. The lit fingers below show it.</li>
+      <li>Your two <b>index fingers</b> sit on <b>F</b> and <b>J</b>. Those two keys have a small bump: feel for it, so you never need to look down.</li>
+      <li>Both thumbs hang over the <b>space bar</b>. Use whichever thumb you like.</li>
+      <li>After every key, <b>return the finger home</b>. Slow and right beats fast and wrong. Do not look at the keyboard.</li>
+    </ol>
+    <div class="btns"><button class="big" id="startbtn">Start lesson 1</button></div>
+  </div>
+
+  <div class="card" id="play">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div id="title"></div><button class="chip" id="restartbtn" title="Press Esc">↻ Restart (Esc)</button></div><div id="sub"></div>
+    <div id="how"></div>
+    <div id="lenrow">
+      <label>Level <select id="level"></select></label>
+      <label>Length <input type="range" id="len" min="150" max="500" step="50"> <b id="lenval"></b> characters</label>
+    </div>
+    <div id="prompt"></div>
+    <div id="hint"></div>
+    <div id="capswarn">Caps Lock is on. Press it once to turn it off: capitals come from Shift.</div>
+    <div id="flash"></div>
+  </div>
+
+  <div class="card" id="guide">
+    <div id="kb"></div>
+    <div id="hands">
+      <div class="handwrap"><div class="hand" id="hl"><div class="palm"></div></div><div class="handlabel">Left hand</div></div>
+      <div class="handwrap"><div class="hand" id="hr"><div class="palm"></div></div><div class="handlabel">Right hand</div></div>
+    </div>
+    <div class="spacebar-note">Both thumbs rest above the space bar. Either one hits it. Shift and Option are always held by the other hand.</div>
+  </div>
+
+  <div class="card" id="stats">
+    <div>Speed<br><b id="wpm">0</b> wpm</div>
+    <div>Accuracy<br><b id="acc">100</b>%</div>
+    <div>Mistakes<br><b id="mis">0</b></div>
+    <div>Progress<br><b id="prog">0</b>%</div>
+  </div>
+
+  <div class="card" id="trouble"></div>
+
+  <div class="card" id="result">
+    <div class="stars" id="stars"></div>
+    <div id="resulttext"></div>
+    <div class="btns"><button class="big" id="nextbtn">Next lesson</button><button class="big sec" id="retrybtn">Try again</button></div>
+  </div>
+</main>
+
+<script>
+// ---------- fingers and keyboards ----------
+const FINGERS = {
+  lp: {name: "left pinky",   c: "var(--lp)", hand: "l", idx: 0},
+  lr: {name: "left ring finger",   c: "var(--lr)", hand: "l", idx: 1},
+  lm: {name: "left middle finger", c: "var(--lm)", hand: "l", idx: 2},
+  li: {name: "left index finger",  c: "var(--li)", hand: "l", idx: 3},
+  lt: {name: "left thumb", c: "var(--th)", hand: "l", idx: 4},
+  rt: {name: "right thumb", c: "var(--th)", hand: "r", idx: 0},
+  ri: {name: "right index finger", c: "var(--ri)", hand: "r", idx: 1},
+  rm: {name: "right middle finger", c: "var(--rm)", hand: "r", idx: 2},
+  rr: {name: "right ring finger",   c: "var(--rr)", hand: "r", idx: 3},
+  rp: {name: "right pinky", c: "var(--rp)", hand: "r", idx: 4},
+};
+const LAYOUTS = { fi: { pinkyHome: "ö" }, us: { pinkyHome: ";" } };
+// Each key is a string of what it types: base, Shift, Option, Shift and Option (a space means nothing).
+// Letters get their capital from Shift on their own. The Finnish rows were read from macOS "Finnish Extended" (2026-11-04).
+const KEYMAPS = {
+  fi: {
+    rows: [
+      ["§°", "1!", "2\"@", "3#", "4€$", "5%", "6&", "7/|\\", "8([{", "9)]}", "0=", "+?", "´"],
+      [..."qwertyuiopå", "¨"],
+      [..."asdfghjklöä", "'*"],
+      ["<>", ..."zxcvbnm", ",;", ".:", "-_"],
+    ],
+    fingers: ["lp lp lr lm li li li ri rm rr rp rp rp", "lp lr lm li li ri ri rm rr rp rp rp", "lp lr lm li li ri ri rm rr rp rp rp", "lp lp lr lm li li ri ri rm rr rp"],
+    shiftL: 1.25, dead: "´¨",
+  },
+  us: {
+    rows: [
+      ["`~", "1!", "2@", "3#", "4$", "5%", "6^", "7&", "8*", "9(", "0)", "-_", "=+"],
+      [..."qwertyuiop", "[{", "]}", "\\|"],
+      [..."asdfghjkl", ";:", "'\""],
+      [..."zxcvbnm", ",<", ".>", "/?"],
+    ],
+    fingers: ["lp lp lr lm li li li ri rm rr rp rp rp", "lp lr lm li li ri ri rm rr rp rp rp rp", "lp lr lm li li ri ri rm rr rp rp", "lp lr lm li li ri ri rm rr rp"],
+    shiftL: 2.25, dead: "",
+  },
+};
+const MODFINGER = {ShiftLeft: "lp", ShiftRight: "rp", AltLeft: "lt", AltRight: "rt"};
+let layout = "fi";
+let charInfo = {};   // character -> {k: the key it sits on, f: finger, shift, opt}
+function buildCharInfo() {
+  const m = KEYMAPS[layout];
+  charInfo = {" ": {k: " ", f: "rt", shift: false, opt: false}};
+  m.rows.forEach((row, r) => {
+    const fs = m.fingers[r].split(" ");
+    row.forEach((key, c) => {
+      if (m.dead.includes(key[0])) return;
+      const layers = [...key];
+      if (layers.length === 1 && key.toUpperCase() !== key) layers.push(key.toUpperCase());
+      layers.forEach((ch, i) => { if (ch !== " " && !charInfo[ch]) charInfo[ch] = {k: key[0], f: fs[c], shift: i % 2 === 1, opt: i >= 2}; });
+    });
+  });
+}
+const isUpper = ch => ch !== ch.toLowerCase();
+// modifier keys a character needs, always on the other hand from the finger that types it
+function modsFor(ch) {
+  const i = charInfo[ch]; if (!i || ch === " ") return [];
+  const side = FINGERS[i.f].hand === "l" ? "Right" : "Left";
+  return [...(i.shift ? ["Shift" + side] : []), ...(i.opt ? ["Alt" + side] : [])];
+}
+const fingersFor = ch => ch === " " ? ["lt", "rt"] : charInfo[ch] ? [charInfo[ch].f, ...modsFor(ch).map(m => MODFINGER[m])] : [];
+
+// ---------- lessons: letters first, then capitals, numbers and symbols, one skill at a time ----------
+function lessonDefs() {
+  const fi = layout === "fi";
+  const p = LAYOUTS[layout].pinkyHome;
+  const letters = [
+    {id: "fj", add: "fj",       name: "Index fingers home",     tip: "F and J have bumps. Feel them."},
+    {id: "dk", add: "dk",       name: "Middle fingers",         tip: "Middle fingers reach D and K."},
+    {id: "sl", add: "sl",       name: "Ring fingers",           tip: "Ring fingers: S and L."},
+    {id: "pinkies", add: "a" + p, name: "Pinkies: finish the home row", tip: "Weakest fingers. Go slow."},
+    ...(fi ? [{id: "ä", add: "ä", name: "Ä: right pinky, one key past Ö", tip: "Same pinky as Ö, just one key further right."}] : []),
+    {id: "gh", add: "gh",       name: "Index fingers stretch sideways", tip: "Index goes to G / H and straight back to F / J."},
+    {id: "ei", add: "ei",       name: "Top row: middle fingers", tip: "Reach up, then come back home."},
+    {id: "ru", add: "ru",       name: "Top row: index fingers", tip: "R belongs to the left index, U to the right."},
+    {id: "ty", add: "ty",       name: "Index stretch up",       tip: "T left index, Y right index."},
+    {id: "wo", add: "wo",       name: "Top row: ring fingers",  tip: "W left ring, O right ring."},
+    {id: "top-pinkies", add: fi ? "qpå" : "qp", name: "Top row: pinkies", tip: fi ? "Q left pinky, P and Å right pinky (Å is one key past P)." : "Q left pinky, P right pinky."},
+    {id: "cm", add: "cm",       name: "Bottom row: C and M",    tip: "C left middle, M right index."},
+    {id: "vbn", add: "vbn",     name: "Bottom row: V B N",      tip: "Index fingers go down: V, B left, N right."},
+    {id: "xz", add: "xz",       name: "Bottom row: X and Z",    tip: "X left ring, Z left pinky."},
+    {id: "punct", add: fi ? ",.-" : ",./", name: "Punctuation", tip: "Comma middle, period ring, last one right pinky.", prose: true},
+  ];
+  const more = [
+    {id: "caps-left", stage: "Capitals", add: "JKLHUIOPYNMÖÄÅ", many: true, name: "Capitals with the left Shift",
+     tip: "Right-hand letters get the LEFT Shift: your left pinky holds it while the right hand types the letter. Hold, tap, let go."},
+    {id: "caps-right", stage: "Capitals", add: "QWERTASDFGZXCVB", many: true, name: "Capitals with the right Shift",
+     tip: "Left-hand letters get the RIGHT Shift, held by the right pinky. The rule for every Shift: the other hand holds it."},
+    {id: "caps-text", stage: "Capitals", add: "", text: "caps", name: "Capitals in sentences",
+     tip: "Every sentence starts with a capital, and so do names. See which hand types the letter, then Shift with the other."},
+    {id: "shift-punct", stage: "Capitals", add: ":;-_", name: fi ? "Colon, semicolon, underscore" : "Colon, dash, underscore",
+     tip: fi ? "Shift on keys you know: comma gives ;, period gives :, the - key gives _. All right-hand keys, so the left pinky holds Shift."
+             : "Shift on ; gives :. The - key sits top right, two rows up (right pinky), and gives _ with Shift. Left pinky holds Shift."},
+    {id: "apostrophe", stage: "Capitals", add: "'", name: "Apostrophe",
+     tip: fi ? "New key, one past Ä, right pinky. English uses it a lot (don't, it's), Finnish now and then (vaa'an)."
+             : "The key one past ;, right pinky. Used in don't, it's, I'm."},
+    {id: "n47", stage: "Numbers", add: "47", name: "Numbers: 4 and 7", tip: "Numbers sit two rows up. Index fingers: 4 above R, 7 above U. Reach, press, straight back home."},
+    {id: "n38", stage: "Numbers", add: "38", name: "Numbers: 3 and 8", tip: "Middle fingers: 3 above E, 8 above I."},
+    {id: "n56", stage: "Numbers", add: "56", name: "Numbers: 5 and 6", tip: "The left index finger owns both: 5 above T, 6 just right of it. 6 is still the left hand."},
+    {id: "n29", stage: "Numbers", add: "29", name: "Numbers: 2 and 9", tip: "Ring fingers: 2 above W, 9 above O."},
+    {id: "n10", stage: "Numbers", add: "10", name: "Numbers: 1 and 0", tip: "Pinkies: 1 above Q, 0 above P. The longest reach, so go slow."},
+    {id: "num-text", stage: "Numbers", add: "", text: "nums", name: "Numbers in real text",
+     tip: fi ? "Numbers the way you'll write them: dates 4.11.2026, times klo 14.30, decimals 12,50, years." : "Numbers the way you'll write them: dates, times, prices, years."},
+    {id: "end-marks", stage: "Symbols", add: "?!", name: "Question and exclamation marks", tip: "Sentence endings. Same Shift rule as capitals: the other hand holds Shift."},
+    {id: "quotes", stage: "Symbols", add: "\"", name: "Quotation marks", tip: "They go around what someone says, or a title."},
+    {id: "brackets", stage: "Symbols", add: "()", name: "Brackets ( )", tip: "For side notes (like this one)."},
+    {id: "slash-pct", stage: "Symbols", add: "/%", name: fi ? "Slash and percent" : "Percent", tip: "Slash for and/or and km/h, percent after a number."},
+    {id: "money-amp", stage: "Symbols", add: "€&#", name: fi ? "Euro, and sign, hash" : "And sign and hash", tip: fi ? "Three Shift symbols on the left-hand number keys, so the right pinky holds Shift." : "Shift symbols on the number row."},
+    {id: "math", stage: "Symbols", add: "+=*", name: "Math: plus, equals, times",
+     tip: fi ? "+ has its own key right of 0. = and * are Shift on right-pinky keys, so the left pinky holds Shift." : "= has its own key; + and * need Shift."},
+    {id: "opt-at", stage: fi ? "Option key" : "More symbols", add: "@$", name: fi ? "Option key: @ and $" : "@ and $",
+     tip: fi ? "New key: Option (alt), next to Cmd beside the space bar. It works like Shift: the other hand's thumb holds it." : "Both are Shift on the number row."},
+    {id: "opt-brackets", stage: fi ? "Option key" : "More symbols", add: "[]{}", name: "Square and curly brackets",
+     tip: fi ? "[ ] are Option with 8 and 9. { } need Shift and Option together, both held by the left hand." : "[ ] have their own keys right of P; { } are the same keys with Shift."},
+    {id: "rare", stage: fi ? "Option key" : "More symbols", add: "<>|\\", name: "The rare ones",
+     tip: fi ? "< and > live on the key left of Z (left pinky). | and \\ are Option on 7, \\ with Shift too." : "< > are Shift on comma and period. \\ has its own key, | is Shift on it."},
+  ];
+  const out = letters.map(d => ({...d, stage: "Letters"}));
+  const known = new Set(letters.map(d => d.add).join(""));
+  for (const d of more) {
+    const add = [...d.add].filter(ch => charInfo[ch] && !known.has(ch)).join("");
+    if (!add && !d.text) continue;
+    for (const ch of add) known.add(ch);
+    out.push({...d, add});
+  }
+  out.push({id: "final", stage: "Final", add: "", name: "Real text", final: true,
+    tip: "Real sentences with every key of your level, the common ones at least {n}. Your weak keys and mix-ups come up more often. Fresh text every run."});
+  return out;
+}
+// final test levels: each one includes every lesson up to and including `upto`
+const LEVELS = [
+  {name: "Letters", upto: "punct"},
+  {name: "Capitals", upto: "apostrophe"},
+  {name: "Numbers", upto: "num-text"},
+  {name: "Symbols", upto: "math"},
+  {name: "Everything", upto: "rare"},
+];
+let finalLevel = 1;
+function knownFor(i) {
+  const defs = lessonDefs();
+  if (defs[i].final) i = defs.findIndex(d => d.id === LEVELS[finalLevel - 1].upto);
+  return defs.slice(0, i + 1).map(d => d.add).join("");
+}
+
+const WORDS_FI = ("ja on ei se että hän oli ovat mutta kun niin kuin tai jos kuka mikä missä miten milloin kyllä hyvä paha iso pieni uusi vanha kaunis nopea hidas helppo vaikea ensin sitten aina joskus usein harvoin tänään huomenna eilen aamu päivä ilta yö viikko kuukausi vuosi talo koti koulu työ kaupunki maa meri järvi joki metsä puu kukka kala lintu koira kissa hevonen lehmä auto juna bussi tie katu silta kirja lehti paperi kynä pöytä tuoli ikkuna ovi lattia katto sänky ruoka leipä maito juusto liha peruna kahvi tee vesi olut omena sana lause kieli suomi englanti ihminen mies nainen lapsi poika tyttö äiti isä veli sisko ystävä opettaja oppilas lääkäri raha hinta kauppa ostaa myydä maksaa antaa saada tehdä mennä tulla olla ollut nähdä kuulla puhua kirjoittaa lukea laulaa juosta kävellä istua seisoa nukkua syödä juoda ajatella tietää tuntea rakastaa auttaa kysyä vastata odottaa alkaa loppua avata sulkea löytää kadottaa pitää haluta voida täytyä saattaa jäädä pysyä palata lähteä jättää kaikki mikään jokin kukaan tämä tuo nämä nuo minä sinä me te he meidän teidän heidän sinun minun yli ali yksi kaksi kolme neljä viisi kuusi seitsemän kahdeksan yhdeksän kymmenen sata tuhat kylmä lämmin kuuma valkoinen musta punainen sininen keltainen vihreä ruskea harmaa lumi sade tuuli aurinko kuu tähti pilvi talvi kesä kevät syksy salaa sakka lasi lasit alas ala sää sävy väsynyt käsi jalka pää silmä korva suu nenä sydän hammas hius jäätelö jää jäi säde väli väri vähän paljon enemmän vähemmän parempi pahempi kauan lähellä kaukana ylhäällä alhaalla ulkona sisällä aasi laaja jakaa ajaa kaljaa lakka jalkaa sakkaa kalasta kaksi saksa sähkö älä äkkiä äänestää ääni öljy yö työ syö tyttö löytyä kölli köyhä möly").split(" ");
+const WORDS_EN = ("the of and to in is it you that he was for on are with as his they be at one have this from or had by hot but some what there we can out other were all your when up use word how said an each she which do their time if will way about many then them write would like so these her long make thing see him two has look more day could go come did my sound no most number who over know water than call first people may down side been now find any new work part take get place made live where after back little only round man year came show every good me give our under name very through just form much great think say help low line before turn cause same mean differ move right boy old too does tell sentence set three want air well also play small end put home read hand port large spell add even land here must big high such follow act why ask men change went light kind off need house picture try us again animal point mother world near build self earth father head stand own page should country found answer school grow study still learn plant cover food sun four between state keep eye never last let thought city tree cross farm hard start might story saw far sea draw left late run dont while press close night real life few north open seem together next white children begin got walk example ease paper group always music those both mark often letter until mile river car feet care second book carry took science eat room friend began idea fish mountain stop once base hear horse cut sure watch color face wood main enough plain girl usual young ready above ever red list though feel talk bird soon body dog family direct pose leave song measure door product black short numeral class wind question happen complete ship area half rock order fire south problem piece told knew pass since top whole king space heard best hour better true during hundred five remember step early hold west ground interest reach fast verb sing listen six table travel less morning ten simple several vowel toward war lay against pattern slow center love person money serve appear road map rain rule govern pull cold notice voice unit power town fine certain fly fall lead cry dark machine note wait plan figure star box noun field rest correct able pound done beauty drive stood contain front teach week final gave green oh quick develop ocean warm free minute strong special mind behind clear tail produce fact street inch multiply nothing course stay wheel full force blue object decide surface deep moon island foot system busy test record boat common gold possible plane stead dry wonder laugh thousand ago ran check game shape equate hot miss brought heat snow tire bring yes distant fill east paint language among salad flask alaska dad lad sad ask fall hall shall glad half flash").split(" ");
+
+// hyphen and slash words, filtered by what the layout has
+const JOINED_FI = "linja-auto kala-allas maa-alue sana-arvoitus musiikki-ilta radio-ohjelma tv-ohjelma cd-levy wc-paperi e-kirja t-paita u-käännös c-vitamiini d-vitamiini x-kromosomi itä-suomi länsi-suomi etelä-suomi pohjois-suomi ex-poikaystävä".split(" ");
+const JOINED_EN = "well-known long-term short-term self-made part-time full-time old-fashioned low-cost high-quality quick-witted x-ray e-mail t-shirt u-turn check-in make-up follow-up one-way two-way and/or yes/no on/off he/she in/out up/down".split(" ");
+// borrowed only for keys the chosen word list never reaches (q z x c w å in Finnish, ä ö å in English)
+const RARE = "pizza jazz zoo zero quiz size lazy prize dozen quick queen quiet equal extra taxi box six mix max fax web wc watti cola cd celsius golf fakta filmi firma fani på så år två båt gå yö työ syö öljy sää pää käsi äiti".split(" ");
+// capitalised words for the Shift lessons, and apostrophe words
+const NAMES_FI = "Matti Liisa Pekka Anna Juha Mikko Laura Sanna Ville Emma Jussi Kalle Oskari Ilona Hanna Ulla Paavo Niko Minna Olli Eeva Aino Tiina Seppo Riikka Veera Elina Antti Aleksi Sofia Helmi Onni Väinö Eino Iida Joonas Lauri Kaisa Petri Satu Heikki Yrjö Bertta Fredrik Greta Xenia Camilla Carita Wilma Walter Helsinki Tampere Turku Oulu Espoo Vantaa Lahti Kuopio Pori Joensuu Jyväskylä Rovaniemi Vaasa Kotka Hamina Rauma Salo Kemi Tornio Inari Ylläs Levi Äänekoski Ähtäri Örö Åland Suomi Ruotsi Norja Viro Saksa Ranska Lontoo Pariisi Berliini Tukholma Oslo Zagreb Qatar Nokia Kalevala Juhannus".split(" ");
+const NAMES_EN = "John Mary Kate Peter Lucy Oliver Harry Emily Grace Henry Jack Zoe Quinn Xavier Victor Wendy Yvonne Ben Dan Fred Greg Nick Mike Lily Ruth Sam Tom Ivan Olga Ursula London Paris Berlin Rome Tokyo Texas Boston Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April June July August October November December English Finland Sweden Åland Europe America Google Netflix Spotify Christmas Easter".split(" ");
+const APOS_FI = "vaa'an vaa'at rei'ät rei'ittää raa'at ruo'on liu'uttaa".split(" ");
+const APOS_EN = "don't can't won't it's isn't didn't doesn't that's you're we're they're let's there's what's I'm I'll I've".split(" ");
+
+// ---------- drill generation ----------
+function rnd(n) { return Math.floor(Math.random() * n); }
+let finalLen = 300;   // final phase length in characters, set by the slider
+const finalMin = () => finalLen < 220 ? 1 : finalLen < 330 ? 2 : 3;   // hits per key that fit the length
+let finalHits = 1;    // hits per common key in the last final text, shown in its subtitle
+let lastExtra = {weak: [], confs: []};
+
+// Real-word sentences. Keys in o.cover must each appear o.minEach times; weak keys and mix-ups get extra.
+// Each word is either aimed at a key that still needs hits (chance o.aim) or picked at random.
+function makeProse(allowed, o) {
+  const ok = w => [...w].every(ch => allowed.includes(ch));
+  const lang = $("lang").value;
+  const useFi = layout === "fi" && lang !== "en", useEn = !(layout === "fi" && lang === "fi");
+  const words = [...new Set([...(useFi ? WORDS_FI : []), ...(useEn ? WORDS_EN : [])])].filter(w => w.length >= 2 && ok(w));
+  const joins = [...(useFi ? JOINED_FI : []), ...(useEn ? JOINED_EN : [])].filter(ok);
+  const reach = new Set([...words, ...joins].join(""));
+  words.push(...RARE.filter(w => ok(w) && !words.includes(w) && [...w].some(ch => !reach.has(ch))));
+  const all = [...words, ...joins];
+  const need = {};
+  const want = (ch, n) => { if (all.some(w => w.includes(ch))) need[ch] = (need[ch] || 0) + n; };
+  for (const ch of o.cover) want(ch, o.minEach);
+  const weak = weakKeys(allowed), confs = topPairs(allowed, 2);
+  for (const ch of weak) want(ch, 3);
+  for (const [a, b] of confs) { want(a, 2); want(b, 2); }
+  lastExtra = {weak: weak.filter(c => !o.cover.includes(c) || o.final), confs};
+  const used = new Set();
+  const pickFrom = list => {
+    const fresh = list.filter(w => !used.has(w)), l = fresh.length ? fresh : list;
+    const w = l[rnd(l.length)]; used.add(w); return w;
+  };
+  const nextWord = () => {
+    const open = Object.keys(need).filter(ch => need[ch] > 0);
+    let w;
+    if (open.length && Math.random() < (len >= o.len ? 1 : o.aim)) {   // past the target length, every word aims
+      let r = Math.random() * open.reduce((s, ch) => s + need[ch], 0), ch = open[0];
+      for (const c of open) { r -= need[c]; if (r < 0) { ch = c; break; } }
+      w = pickFrom(all.filter(x => x.includes(ch)));
+    } else w = pickFrom(joins.length && Math.random() < o.joinP ? joins : words);
+    for (const ch of w) if (need[ch] > 0) need[ch]--;
+    return w;
+  };
+  const sents = [];
+  let len = 0;
+  // stop near o.len; run up to 25% over only while some key still needs hits
+  const done = () => len >= o.len && (!Object.values(need).some(n => n > 0) || len >= o.len * 1.25);
+  while (!done()) {
+    const n = o.sent[0] + rnd(o.sent[1] - o.sent[0] + 1), ws = [];
+    for (let i = 0; i < n && !(done() && ws.length >= 2); i++) {
+      ws.push(nextWord() + (Math.random() < o.commaP ? "," : ""));
+      len += ws[ws.length - 1].length + 1;
+    }
+    ws[ws.length - 1] = ws[ws.length - 1].replace(/,$/, "");
+    sents.push(ws); len++;
+  }
+  // separators no word contains (comma, and ; on US) still get their o.minEach hits
+  for (const sep of [",", ";"].filter(ch => o.cover.includes(ch))) {
+    const free = () => sents.flatMap(ws => ws.slice(0, -1).map((w, i) => [ws, i]).filter(([ws, i]) => /[^,;]$/.test(ws[i])));
+    let have = sents.flat().filter(w => w.endsWith(sep)).length;
+    for (let f = free(); have < o.minEach && f.length; f = free(), have++) { const [ws, i] = f[rnd(f.length)]; ws[i] += sep; }
+  }
+  return sents.map(ws => ws.join(" ") + ".").join(" ");
+}
+
+// Word sources and number makers for the capitals, numbers and symbols lessons, limited to the known keys.
+function richCtx(known) {
+  const K = new Set(known + " ");
+  const ok = s => [...s].every(ch => K.has(ch));
+  const lang = $("lang").value;
+  const useFi = layout === "fi" && lang !== "en", useEn = !(layout === "fi" && lang === "fi");
+  const pick = a => a[rnd(a.length)];
+  const cap = w => w[0].toUpperCase() + w.slice(1);
+  const pad = n => String(n).padStart(2, "0");
+  const c = {K, ok, pick, fi: useFi};
+  c.words = [...new Set([...(useFi ? WORDS_FI : []), ...(useEn ? WORDS_EN : [])])].filter(w => w.length >= 2 && ok(w));
+  c.joins = [...(useFi ? JOINED_FI : []), ...(useEn ? JOINED_EN : [])].filter(ok);
+  c.names = [...(useFi ? NAMES_FI : []), ...(useEn ? NAMES_EN : [])].filter(ok);
+  c.starts = c.words.filter(w => K.has(w[0].toUpperCase())).map(cap);   // sentence openers
+  c.apos = [...(useFi ? APOS_FI : []), ...(useEn ? APOS_EN : [])].filter(ok);
+  c.digits = [..."0123456789"].filter(d => K.has(d));
+  const lead = c.digits.filter(d => d !== "0");
+  c.w = () => pick(c.words);
+  c.withChar = ch => pick([...c.words, ...c.joins].filter(w => w.includes(ch)));
+  c.capWith = C => {
+    const names = c.names.filter(n => n[0] === C), words = c.words.filter(w => w[0] === C.toLowerCase()).map(cap);
+    return names.length && (!words.length || Math.random() < .5) ? pick(names) : pick(words);
+  };
+  // a number of 1 to max digits, never starting with 0
+  c.num = (max = 3) => {
+    if (!c.digits.length) return null;
+    let s = pick(lead.length ? lead : c.digits);
+    for (let n = rnd(max); n > 0; n--) s += pick(c.digits);
+    return s;
+  };
+  c.numWith = d => {
+    const s = [...c.num(3)], at = rnd(s.length + 1);
+    if (d === "0" && at === 0) return s.join("") + d;
+    s.splice(at, 0, d); return s.join("");
+  };
+  // once every digit is known, numbers come as dates, times, decimals, years and ranges
+  const shapes = [
+    () => `${1 + rnd(28)}.${1 + rnd(12)}.${1990 + rnd(40)}`,
+    () => (useFi && Math.random() < .5 ? "klo " : "") + `${7 + rnd(16)}.${pad(rnd(12) * 5)}`,
+    () => `${1 + rnd(99)},${pad(rnd(100))}`,
+    () => `${1900 + rnd(130)}`,
+    () => `${1 + rnd(20)}-${21 + rnd(30)}`,
+    () => `${1 + rnd(500)} km`,
+  ];
+  c.number = () => {
+    if (c.digits.length === 10) for (let t = 0; t < 6; t++) { const s = pick(shapes)(); if (ok(s)) return s; }
+    return c.num(3);
+  };
+  c.math = op => {
+    let a = 2 + rnd(18), b = 2 + rnd(9);
+    if (op === "-" && a < b) [a, b] = [b, a];
+    const r = op === "+" ? a + b : op === "*" ? a * b : a - b;
+    return `${a} ${op} ${b}` + (K.has("=") ? ` = ${r}` : "");
+  };
+  c.cmp = s => { const a = 1 + rnd(50), b = a + 1 + rnd(50); return s === "<" ? `${a} < ${b}` : `${b} > ${a}`; };
+  return c;
+}
+// A short, realistic piece of text for each symbol. Anything using a key that isn't known yet is thrown away.
+const SNIPS = {
+  ",": c => c.w() + ",",
+  "-": c => c.digits.length && Math.random() < .5 ? c.num(2) + "-" + c.num(2) : c.withChar("-"),
+  ":": c => c.w() + ":",
+  ";": c => c.w() + ";",
+  "_": c => c.w() + "_" + c.w(),
+  "'": c => c.pick(c.apos),
+  "\"": c => "\"" + c.w() + " " + c.w() + "\"",
+  "(": c => "(" + (c.digits.length && Math.random() < .3 ? c.number() : c.w() + " " + c.w()) + ")",
+  ")": c => SNIPS["("](c),
+  "/": c => c.pick([c.w() + "/" + c.w(), "km/h", c.digits.length ? c.num(1) + "/" + c.num(1) : "and/or"]),
+  "%": c => c.num(2) + (c.fi ? " %" : "%"),
+  "€": c => (Math.random() < .5 ? c.num(2) + "," + c.pick(c.digits) + c.pick(c.digits) : c.num(3)) + " €",
+  "$": c => "$" + c.num(3),
+  "&": c => c.pick([c.w() + " & " + c.w(), c.w() + " & " + c.w(), "R&D", "Q&A", "B&B"]),
+  "#": c => "#" + (Math.random() < .5 ? c.num(2) : c.w()),
+  "+": c => c.math("+"),
+  "*": c => Math.random() < .6 ? c.math("*") : "*" + c.w() + "*",
+  "=": c => c.math(c.pick(["+", "*", "-"].filter(op => c.K.has(op)))),
+  "@": c => Math.random() < .6 ? c.w() + "@" + c.w() + c.pick([".fi", ".com"]) : "@" + c.w(),
+  "[": c => "[" + (Math.random() < .5 ? c.num(1) : c.w()) + "]",
+  "]": c => SNIPS["["](c),
+  "{": c => "{" + c.w() + "}",
+  "}": c => SNIPS["{"](c),
+  "|": c => c.w() + " | " + c.w(),
+  "\\": c => Math.random() < .5 ? "C:\\" + c.w() : c.w() + "\\" + c.w(),
+  "<": c => Math.random() < .7 ? c.cmp("<") : "<" + c.w() + ">",
+  ">": c => Math.random() < .7 ? c.cmp(">") : "<" + c.w() + ">",
+};
+
+// Sentences for everything after the letters: capital openers, numbers and symbol pieces.
+// Same idea as makeProse: keys in o.cover need o.minEach hits (a number, or a function of the key).
+function makeRich(known, o) {
+  const c = richCtx(known);
+  const minEach = typeof o.minEach === "function" ? o.minEach : () => o.minEach;
+  const need = {};
+  const want = (ch, n) => { if (c.K.has(ch) && ch !== " ") need[ch] = (need[ch] || 0) + n; };
+  for (const ch of new Set(o.cover)) want(ch, minEach(ch));
+  const weak = weakKeys(known), confs = topPairs(known, 2);
+  for (const ch of weak) want(ch, 3);
+  for (const [a, b] of confs) { want(a, 2); want(b, 2); }
+  lastExtra = {weak: weak.filter(ch => !o.cover.includes(ch) || o.final), confs};
+  const use = s => { for (const ch of s) if (need[ch] > 0) need[ch]--; };
+  const open = () => Object.keys(need).filter(ch => need[ch] > 0);
+  const weighted = list => {
+    let r = Math.random() * list.reduce((s, ch) => s + need[ch], 0);
+    for (const ch of list) { r -= need[ch]; if (r < 0) return ch; }
+    return list[0];
+  };
+  // a piece of text using ch; a key no piece can be built for is dropped
+  const tokenFor = ch => {
+    for (let t = 0; t < 10; t++) {
+      const s = /\d/.test(ch) ? c.numWith(ch) : isUpper(ch) ? c.capWith(ch) : SNIPS[ch] ? SNIPS[ch](c) : c.withChar(ch);
+      if (s && !/null|undefined|NaN/.test(s) && c.ok(s)) return s;
+    }
+    need[ch] = 0;
+    return null;
+  };
+  const filler = () => {
+    if (o.numP && c.digits.length && Math.random() < o.numP) return c.number();
+    if (c.names.length && Math.random() < o.nameP) return c.pick(c.names);
+    return c.joins.length && Math.random() < .05 ? c.pick(c.joins) : c.w();
+  };
+  const sents = [];
+  let len = 0;
+  // stop near o.len; run over (25% unless o.over says) only while some key still needs hits
+  const done = () => len >= o.len && (!open().length || len >= o.len * (o.over || 1.25));
+  while (!done()) {
+    const past = len >= o.len;
+    let end = ".";
+    for (const m of ["?", "!"]) if (end === "." && need[m] > 0 && Math.random() < (past ? 1 : .5)) end = m;
+    if (end === "." && c.K.has("?") && Math.random() < .08) end = "?";
+    if (end === "." && c.K.has("!") && Math.random() < .05) end = "!";
+    use(end);
+    // the opener carries the capital whenever capitals are known
+    const caps = open().filter(isUpper);
+    let first = caps.length && Math.random() < (past ? 1 : o.aim + .2) ? tokenFor(weighted(caps)) : null;
+    if (!first) first = !c.starts.length ? c.w() : c.names.length && Math.random() < o.nameP ? c.pick(c.names) : c.pick(c.starts);
+    const toks = [first]; use(first);
+    len += first.length + 2;
+    const n = o.sent[0] + rnd(o.sent[1] - o.sent[0] + 1);
+    for (let i = 1; i < n && !(done() && toks.length >= 2); i++) {
+      const op = open().filter(ch => ch !== "?" && ch !== "!");
+      let t = op.length && Math.random() < (len >= o.len ? 1 : o.aim) ? tokenFor(weighted(op)) : null;
+      if (!t) t = filler();
+      use(t); toks.push(t);
+      len += t.length + 1;
+    }
+    if (/[,:;]$/.test(toks[toks.length - 1])) { const t = c.w(); toks.push(t); len += t.length + 1; }
+    for (let i = 0; i < toks.length - 1; i++) if (Math.random() < o.commaP && /[\p{L}\d]$/u.test(toks[i])) { toks[i] += ","; use(","); len++; }
+    sents.push(toks.join(" ") + end);
+  }
+  return sents.join(" ");
+}
+
+// Warm-up for new keys: reach from the finger's home key and back (f4f), or Shift on and off (Jj jJ).
+function warmup(add) {
+  const home = {lp: "a", lr: "s", lm: "d", li: "f", ri: "j", rm: "k", rr: "l", rp: LAYOUTS[layout].pinkyHome};
+  const caps = [...add].filter(isUpper);
+  if (caps.length) {
+    const homeRow = C => KEYMAPS[layout].rows[2].includes(C.toLowerCase()) ? 0 : 1;
+    return caps.sort(() => Math.random() - .5).sort((a, b) => homeRow(a) - homeRow(b)).slice(0, 6)
+      .map(C => C + C.toLowerCase() + " " + C.toLowerCase() + C).join(" ");
+  }
+  return [...add].map(ch => { const a = home[charInfo[ch].f]; return a + ch + a + " " + a + ch + a + " " + ch + ch; }).join(" ");
+}
+
+function makeDrill(li) {
+  const defs = lessonDefs(), d = defs[li];
+  const added = d.add;
+  const allowed = knownFor(li);
+  if (d.final) {
+    finalHits = finalMin();
+    if (finalLevel === 1) return makeProse(allowed, {cover: allowed, minEach: finalMin(), len: finalLen, sent: [4, 8], commaP: .15, joinP: .08, aim: .7, final: true});
+    const letters = knownFor(defs.findIndex(x => x.id === "punct"));
+    const extra = [...new Set(allowed)].filter(ch => !letters.includes(ch) && !isUpper(ch)).join("");
+    // symbols come in pieces of about 8 characters, so the common ones get a second hit only when the text is long enough
+    const n = finalHits = Math.max(1, Math.min(finalMin(), Math.floor(finalLen * .6 / (extra.length * 9))));
+    return makeRich(allowed, {cover: extra, minEach: ch => /\d/.test(ch) || "[]{}|\\<>_@$".includes(ch) ? 1 : n, len: finalLen, over: 1.1,
+      sent: [4, 9], commaP: .12, aim: .45, nameP: .1, numP: /\d/.test(allowed) ? .07 : 0, final: true});
+  }
+  if (d.stage !== "Letters") {
+    // a low aim spreads the new keys over the whole text instead of the first sentences
+    const o = {cover: added, minEach: d.many ? 1 : 4, len: 170, sent: [3, 6], commaP: .1, aim: d.many ? .5 : .3, nameP: .08, numP: /\d/.test(added) ? .25 : 0};
+    if (d.text === "caps") Object.assign(o, {len: 230, nameP: .3});
+    if (d.text === "nums") Object.assign(o, {cover: "0123456789", minEach: 2, len: 230, sent: [4, 7], numP: .35});
+    return ((added ? warmup(added) + " " : "") + makeRich(allowed, o)).replace(/\s+/g, " ").trim();
+  }
+  if (d.prose) {
+    const warm = [...added].map(ch => ch + ch + " " + ch + ch + ch).join(" ");
+    return warm + " " + makeProse(allowed, {cover: added, minEach: 3, len: 200, sent: [3, 5], commaP: .3, joinP: .15, aim: .4});
+  }
+  const isAllowed = w => [...w].every(ch => allowed.includes(ch));
+  const weak = weakKeys(allowed);
+  const confs = topPairs(allowed, 2);
+  lastExtra = {weak: weak.filter(c => !added.includes(c)), confs};
+  const focus = [...new Set([...added, ...weak])].join("");
+  const hasNew = w => [...w].some(ch => focus.includes(ch));
+  const lang = $("lang").value;
+  const src = (lang === "en" || layout !== "fi") ? WORDS_EN : lang === "fi" ? WORDS_FI : [...WORDS_FI, ...WORDS_EN];
+  let pool = [...new Set(src)].filter(w => w.length >= 2 && isAllowed(w));
+  const newPool = pool.filter(hasNew);
+  const out = [];
+  const pseudo = (len, wantNew) => {
+    let s = "";
+    for (let i = 0; i < len; i++) {
+      const src = (wantNew && (i === 0 || Math.random() < .5)) ? focus : allowed;
+      let ch = src[rnd(src.length)];
+      if (ch === s[s.length - 1] && allowed.length > 2) ch = src[rnd(src.length)];
+      s += ch;
+    }
+    return s;
+  };
+  // 1) warm-up: the new keys on their own, in short repeats
+  for (const ch of added) out.push(ch + ch + " " + ch + ch + ch);
+  // 2) mixed nonsense with the new keys
+  for (let i = 0; i < 4; i++) out.push(pseudo(3 + rnd(3), true));
+  // 2b) drills for the user's remembered mix-ups
+  for (const [a, b] of confs) out.push(a + b + a + " " + b + a + b + " " + a + a + b + " " + b + b + a);
+  // 3) real words that use the new keys
+  const nWords = Math.min(8, newPool.length);
+  const picked = new Set();
+  while (picked.size < nWords) picked.add(newPool[rnd(newPool.length)]);
+  out.push(...picked);
+  // 4) more mixed
+  for (let i = 0; i < 3; i++) out.push(pseudo(3 + rnd(3), true));
+  // shuffle the tail (keep warm-up first)
+  const warm = out.splice(0, added.length);
+  out.sort(() => Math.random() - .5);
+  return [...warm, ...out].join(" ").replace(/\s+/g, " ").trim();
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+let lesson = 0, text = "", pos = 0, errors = 0, keystrokes = 0, startT = 0, finished = false, sideSlips = 0;
+// progress: "layout:lessonId" -> best stars, the final test per level as "layout:final:N".
+// Saves from before lesson ids (keyed by position) are converted once and left in place as a backup.
+const OLD_ORDER = {
+  fi: ["fj", "dk", "sl", "pinkies", "ä", "gh", "ei", "ru", "ty", "wo", "top-pinkies", "cm", "vbn", "xz", "punct"],
+  us: ["fj", "dk", "sl", "pinkies", "gh", "ei", "ru", "ty", "wo", "top-pinkies", "cm", "vbn", "xz", "punct"],
+};
+function loadProgress() {
+  try { const v2 = localStorage.getItem("tft-progress-v2"); if (v2) return JSON.parse(v2) || {}; } catch (e) {}
+  let old = {}, out = {};
+  try { old = JSON.parse(localStorage.getItem("tft-progress") || "{}") || {}; } catch (e) {}
+  for (const [k, v] of Object.entries(old)) {
+    const [lay, i] = k.split(":"), order = OLD_ORDER[lay];
+    if (!order) continue;
+    const id = +i < order.length ? order[+i] : "final:1";
+    out[lay + ":" + id] = Math.max(out[lay + ":" + id] || 0, v);
+  }
+  try { localStorage.setItem("tft-progress-v2", JSON.stringify(out)); } catch (e) {}
+  return out;
+}
+let progress = loadProgress();
+let stats = {keys: {}, pairs: {}};
+function loadStats() {
+  stats = {keys: {}, pairs: {}};
+  try { const x = JSON.parse(localStorage.getItem("tft-stats-" + layout) || "null"); if (x && x.keys && x.pairs) stats = x; } catch (e) {}
+}
+function saveStats() { try { localStorage.setItem("tft-stats-" + layout, JSON.stringify(stats)); } catch (e) {} }
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const show = ch => ch === " " ? "space" : ch;
+const colorOf = ch => charInfo[ch] ? FINGERS[charInfo[ch].f].c : "#666";
+const chipFor = ch => '<span class="chip2" style="background:' + colorOf(ch) + '">' + esc(show(ch)) + '</span>';
+const fchip = f => '<b style="background:' + FINGERS[f].c + '">' + FINGERS[f].name + '</b>';
+const keyName = k => /\d/.test(k) || k.toUpperCase() !== k ? k.toUpperCase() : "the " + k + " key";
+// how to type ch: "left pinky holds Shift, right middle finger presses 8" (html adds finger colors)
+function how(ch, html) {
+  const f = x => html ? fchip(x) : FINGERS[x].name;
+  if (ch === " ") return "either thumb on the space bar";
+  const i = charInfo[ch];
+  if (!i) return "a key this keyboard doesn't have";
+  const parts = modsFor(ch).map(m => f(MODFINGER[m]) + " holds " + (m.startsWith("Shift") ? "Shift" : "Option"));
+  parts.push(f(i.f) + " presses " + (html ? esc(keyName(i.k)) : keyName(i.k)));
+  return parts.join(", ");
+}
+const modWords = ch => modsFor(ch).map(m => m.startsWith("Shift") ? "Shift" : "Option").join(" and ");
+function weakKeys(allowed) {
+  return Object.entries(stats.keys).filter(([c, v]) => allowed.includes(c) && c !== " " && v.e >= 2 && v.e / v.n >= .1)
+    .sort((a, b) => b[1].e - a[1].e).slice(0, 3).map(x => x[0]);
+}
+function topPairs(allowed, n) {
+  return Object.entries(stats.pairs).map(([k, c]) => [k[0], k[2], c])
+    .filter(([a, b, c]) => c >= 2 && allowed.includes(a) && allowed.includes(b) && a !== " " && b !== " ")
+    .sort((x, y) => y[2] - x[2]).slice(0, n);
+}
+function renderTrouble() {
+  const box = $("trouble");
+  const pairs = Object.entries(stats.pairs).map(([k, c]) => [k[0], k[2], c]).sort((x, y) => y[2] - x[2]).slice(0, 5);
+  const keys = Object.entries(stats.keys).filter(([c, v]) => v.n >= 8 && v.e / v.n >= .1).sort((a, b) => b[1].e / b[1].n - a[1].e / a[1].n).slice(0, 4);
+  if (!pairs.length) { box.innerHTML = "<h3>Your trouble spots</h3><div class='dim'>No mistakes recorded yet. Every slip is remembered between sessions, and your weak keys come back as extra drills.</div>"; return; }
+  let h = "<h3>Your trouble spots</h3><div class='dim'>Remembered across sessions. Weak keys are drilled again in your next lessons.</div><ul>";
+  for (const [a, b, c] of pairs) h += "<li>Wanted " + chipFor(a) + ", typed " + chipFor(b) + ": <b>" + c + "x</b>. " + esc(show(a)) + ": " + esc(how(a)) + ".</li>";
+  h += "</ul>";
+  if (keys.length) h += "<div class='dim' style='margin-top:6px'>Keys you miss most: " + keys.map(([c, v]) => esc(show(c)) + " (" + Math.round(100 * v.e / v.n) + "% wrong)").join(", ") + "</div>";
+  h += "<div class='btns'><button class='big sec' id='resetmem'>Reset memory</button></div>";
+  box.innerHTML = h;
+  $("resetmem").onclick = () => { if (confirm("Forget all remembered mistakes?")) { stats = {keys: {}, pairs: {}}; saveStats(); renderTrouble(); } };
+}
+function save() { try { localStorage.setItem("tft-progress-v2", JSON.stringify(progress)); } catch (e) {} }
+
+const levelStars = n => progress[layout + ":final:" + n] || 0;
+function stars(i) {
+  const d = lessonDefs()[i];
+  return d.final ? Math.max(...LEVELS.map((_, n) => levelStars(n + 1))) : progress[layout + ":" + d.id] || 0;
+}
+const indexOf = id => lessonDefs().findIndex(d => d.id === id);
+function unlocked(i) {
+  if (lessonDefs()[i].final) return stars(indexOf("punct")) >= 1;   // the final test opens after the letters
+  return i === 0 || stars(i - 1) >= 1;
+}
+function defaultLevel() {
+  let n = 1;
+  LEVELS.forEach((L, j) => { if (stars(indexOf(L.upto)) >= 1) n = j + 1; });
+  return n;
+}
+function renderLevels() {
+  $("level").innerHTML = LEVELS.map((L, j) => {
+    const s = levelStars(j + 1), learned = stars(indexOf(L.upto)) >= 1;
+    return '<option value="' + (j + 1) + '">' + (j + 1) + " " + L.name + (s ? " " + "★".repeat(s) : "") + (learned ? "" : " (not learned yet)") + "</option>";
+  }).join("");
+  $("level").value = finalLevel;
+}
+
+function buildKeyboard() {
+  const kb = $("kb"); kb.innerHTML = "";
+  const m = KEYMAPS[layout];
+  const div = cls => { const el = document.createElement("div"); el.className = cls; return el; };
+  const span = u => "calc(var(--k) * " + u + " + var(--g) * " + (u - 1) + ")";   // width of a key u keys wide
+  const paint = (k, f) => { k.style.background = FINGERS[f].c; k.style.setProperty("--c", FINGERS[f].c); };
+  const mod = (code, label, u) => { const k = div("key mod"); k.dataset.mod = code; k.textContent = label; k.style.width = span(u); paint(k, MODFINGER[code]); return k; };
+  m.rows.forEach((row, r) => {
+    const el = div("row");
+    if (r === 3) el.appendChild(mod("ShiftLeft", "shift", m.shiftL));
+    else el.style.marginLeft = "calc(var(--u) * " + [0, 1.5, 1.75][r] + ")";
+    const fs = m.fingers[r].split(" ");
+    row.forEach((key, c) => {
+      const k = div("key"); k.dataset.k = key[0]; k.dataset.l = key; paint(k, fs[c]);
+      const letter = key.length === 1 && key.toUpperCase() !== key;
+      k.innerHTML = letter ? esc(key.toUpperCase()) : (key[1] && key[1] !== " " ? '<span class="s">' + esc(key[1]) + "</span>" : "") + esc(key[0])
+        + (key.length > 2 ? '<span class="o">' + esc(key.slice(2).replace(/ /g, "")) + "</span>" : "");
+      if (m.dead.includes(key[0])) k.classList.add("dead");
+      if (key === "f" || key === "j") k.classList.add("home");
+      el.appendChild(k);
+    });
+    if (r === 3) el.appendChild(mod("ShiftRight", "shift", 2));
+    kb.appendChild(el);
+  });
+  const el = div("row"); el.style.marginLeft = "calc(var(--u) * 2.5)";
+  const sp = div("key space"); sp.dataset.k = " "; sp.dataset.l = " "; sp.textContent = "space"; sp.style.width = span(6); paint(sp, "rt");
+  el.append(mod("AltLeft", "option", 1.25), sp, mod("AltRight", "option", 1.25));
+  kb.appendChild(el);
+}
+
+function buildHands() {
+  const order = {l: ["lp","lr","lm","li","lt"], r: ["rt","ri","rm","rr","rp"]};
+  const heights = {lp: 90, lr: 125, lm: 140, li: 128, lt: 80, rt: 80, ri: 128, rm: 140, rr: 125, rp: 90};
+  const lefts = [8, 56, 104, 152, 200];
+  for (const h of ["l","r"]) {
+    const el = $("h" + h); [...el.querySelectorAll(".finger")].forEach(x => x.remove());
+    order[h].forEach((f, i) => {
+      const d = document.createElement("div"); d.className = "finger"; d.dataset.f = f;
+      d.style.left = lefts[i] + "px"; d.style.height = heights[f] + "px"; d.style.setProperty("--c", FINGERS[f].c);
+      if (f === "lt" || f === "rt") { d.classList.add("th"); d.textContent = "thumb"; d.style.fontSize = "10px"; }
+      if (f === "lt") { d.style.transform = "rotate(25deg)"; d.style.bottom = "-6px"; }
+      if (f === "rt") { d.style.transform = "rotate(-25deg)"; d.style.bottom = "-6px"; }
+      el.appendChild(d);
+    });
+  }
+}
+
+function litFingers(set) {
+  document.querySelectorAll(".finger").forEach(f => f.classList.toggle("on", set.has(f.dataset.f)));
+}
+
+function renderLessons() {
+  const defs = lessonDefs(); const box = $("lessons"); box.innerHTML = "";
+  let stage = null, group = null;
+  defs.forEach((d, i) => {
+    if (d.stage !== stage) {
+      stage = d.stage; group = document.createElement("div"); group.className = "lgroup";
+      if (!d.final) group.innerHTML = '<span class="lab">' + stage + "</span>";
+      box.appendChild(group);
+    }
+    const b = document.createElement("button");
+    b.className = "chip" + (i === lesson ? " on" : "") + (stars(i) ? " done" : "") + (unlocked(i) ? "" : " locked");
+    b.textContent = (d.final ? "Final" : i + 1) + (stars(i) ? " ✓" : "");
+    b.title = d.name;
+    b.onclick = () => { if (unlocked(i)) startLesson(i); };
+    group.appendChild(b);
+  });
+}
+
+function renderPrompt() {
+  const p = $("prompt"); p.innerHTML = "";
+  let w = null;   // one wrapper per word, so lines break between words
+  [...text].forEach((ch, i) => {
+    if (!w) { w = document.createElement("span"); w.className = "w"; p.appendChild(w); }
+    const s = document.createElement("span");
+    s.textContent = ch === " " ? "␣" : ch;
+    s.className = i < pos ? "ok" : i === pos ? "cur" : "";
+    if (ch === " " && i >= pos) s.style.opacity = .45;
+    w.appendChild(s);
+    if (ch === " ") w = null;
+  });
+}
+
+function updateTargets() {
+  document.querySelectorAll(".key").forEach(k => k.classList.remove("target", "pressbad"));
+  const ch = text[pos];
+  if (ch === undefined) { litFingers(new Set()); $("hint").innerHTML = ""; return; }
+  const i = charInfo[ch];
+  if (i) document.querySelector('.key[data-k="' + CSS.escape(i.k) + '"]')?.classList.add("target");
+  modsFor(ch).forEach(m => document.querySelector('.key[data-mod="' + m + '"]')?.classList.add("target"));
+  litFingers(new Set(fingersFor(ch)));
+  const label = '<b style="background:' + colorOf(ch) + '">' + esc(show(ch)) + "</b>";
+  $("hint").innerHTML = "Next: " + label + " " + (modsFor(ch).length ? how(ch, true) : ch === " " ? "with either thumb" : "with your " + fchip(i.f));
+}
+
+function markUsedKeys() {
+  const K = new Set(knownFor(lesson) + " ");
+  const mods = new Set([...K].flatMap(modsFor));
+  document.querySelectorAll("#kb .key").forEach(k => {
+    if (k.dataset.mod) { k.classList.toggle("used", mods.has(k.dataset.mod)); return; }
+    const l = k.dataset.l, chars = l.length === 1 ? [l, l.toUpperCase()] : [...l];
+    k.classList.toggle("used", chars.some(ch => K.has(ch)));
+    k.classList.toggle("optshow", [...l.slice(2)].some(ch => K.has(ch)));
+  });
+}
+
+function updateStats() {
+  const mins = startT ? (performance.now() - startT) / 60000 : 0;
+  const wpm = mins > 0 && pos > 0 ? Math.round((pos / 5) / mins) : 0;
+  const acc = keystrokes ? Math.round(100 * (keystrokes - errors) / keystrokes) : 100;
+  $("wpm").textContent = wpm; $("acc").textContent = acc; $("mis").textContent = errors;
+  $("prog").textContent = text ? Math.round(100 * pos / text.length) : 0;
+  return {wpm, acc};
+}
+
+function startLesson(i) {
+  lesson = i; finished = false; sideSlips = 0;
+  const defs = lessonDefs(), d = defs[i];
+  $("setup").classList.remove("show");
+  $("play").style.display = ""; $("result").classList.remove("show");
+  text = makeDrill(i); pos = 0; errors = 0; keystrokes = 0; startT = 0;
+  $("title").textContent = d.final ? "Final test, level " + finalLevel + ": " + LEVELS[finalLevel - 1].name
+    : "Lesson " + (i + 1) + " of " + (defs.length - 1) + ": " + d.name;
+  let sub = d.tip.replace("{n}", ["once", "twice", "three times"][finalHits - 1]);
+  $("lenrow").style.display = d.final ? "" : "none";
+  if (d.add) sub += " New: " + [...d.add].join(" ") + ".";
+  if (lastExtra.weak.length) sub += " Extra practice on your weak keys: " + lastExtra.weak.map(show).join(" ") + ".";
+  if (lastExtra.confs.length) sub += " Mix-ups drilled: " + lastExtra.confs.map(([a, b]) => show(a) + " vs " + show(b)).join(", ") + ".";
+  $("sub").textContent = sub;
+  // after the letters, every new key gets a line saying exactly how to type it
+  const howKeys = d.stage === "Letters" || !d.add ? [] : d.many ? [d.add[0]] : [...d.add];
+  $("how").innerHTML = howKeys.map(ch => "<div>" + '<b style="background:' + colorOf(ch) + '">' + esc(ch) + "</b> " + how(ch, true) + (d.many ? ". Every capital in this lesson works the same way." : "") + "</div>").join("");
+  $("retrybtn").textContent = d.final ? "New text" : "Try again";
+  $("flash").textContent = ""; $("flash").className = "";
+  if (d.final) renderLevels();
+  markUsedKeys(); renderPrompt(); updateTargets(); updateStats(); renderLessons(); renderTrouble();
+}
+
+function showSetup() {
+  $("play").style.display = "none"; $("setup").classList.add("show");
+  $("startbtn").textContent = "Start lesson 1";
+  document.querySelectorAll(".ocar").forEach(x => x.textContent = LAYOUTS[layout].pinkyHome.toUpperCase());
+  document.querySelectorAll(".key").forEach(k => k.classList.remove("target"));
+  const home = new Set(["lp","lr","lm","li","lt","ri","rm","rr","rp","rt"]);
+  litFingers(home);
+  document.querySelectorAll(".key").forEach(k => k.classList.toggle("used", "asdfjkl".includes(k.dataset.k || "#") || k.dataset.k === LAYOUTS[layout].pinkyHome));
+}
+
+function finish() {
+  finished = true;
+  const {wpm, acc} = updateStats();
+  const d = lessonDefs()[lesson];
+  const n = acc >= 98 ? 3 : acc >= 95 ? 2 : acc >= 90 ? 1 : 0;
+  const pk = layout + ":" + (d.final ? "final:" + finalLevel : d.id);
+  if (n > (progress[pk] || 0)) { progress[pk] = n; save(); }
+  $("stars").textContent = n ? "★".repeat(n) + "☆".repeat(3 - n) : "☆☆☆";
+  const side = sideSlips ? " Shift or Option on the wrong side " + sideSlips + (sideSlips === 1 ? " time" : " times") + ": the other hand holds it." : "";
+  $("resulttext").textContent = (n
+    ? wpm + " wpm at " + acc + "% accuracy. " + (n === 3 ? "Clean run." : "Good. Aim for 98% for three stars.") + (d.final ? " Press New text for a fresh run." : " Next lesson is open.")
+    : wpm + " wpm at " + acc + "% accuracy. Under 90%: slow down until every key is right, then try again.") + side;
+  $("nextbtn").style.display = n && lesson + 1 < lessonDefs().length ? "" : "none";
+  $("result").classList.add("show");
+  litFingers(new Set()); $("hint").textContent = "Lesson finished."; $("flash").textContent = "";
+  if (d.final) renderLevels();
+  renderLessons();
+}
+
+// which Shift and Option keys are held right now, to catch the wrong side
+const held = new Set();
+const capsCheck = e => { if (e.getModifierState) $("capswarn").classList.toggle("show", e.getModifierState("CapsLock")); };
+document.addEventListener("keydown", e => { if (MODFINGER[e.code]) held.add(e.code); capsCheck(e); }, true);
+document.addEventListener("keyup", e => { held.delete(e.code); capsCheck(e); }, true);
+window.addEventListener("blur", () => held.clear());
+function flash(html, soft) { $("flash").innerHTML = html; $("flash").className = soft ? "soft" : ""; }
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && text && !$("setup").classList.contains("show")) { e.preventDefault(); startLesson(lesson); return; }
+  if (!text || finished || $("setup").classList.contains("show")) return;
+  if (e.metaKey || (e.ctrlKey && !e.altKey)) return;
+  if (e.key === "Backspace") { e.preventDefault(); return; }
+  if (e.key === "Dead") { flash("That key only adds a mark (´ ¨) to the next letter. It isn't used here.", true); return; }
+  if (e.key.length !== 1) return;   // Shift, Option, Caps Lock, arrows
+  e.preventDefault();
+  if (!startT) startT = performance.now();
+  const want = text[pos], got = e.key;
+  keystrokes++;
+  const ks = stats.keys[want] || (stats.keys[want] = {n: 0, e: 0}); ks.n++;
+  if (got === want) {
+    pos++; saveStats();
+    const wrongSide = modsFor(want).filter(m => !held.has(m) && held.has(m.replace(/Left|Right/, s => s === "Left" ? "Right" : "Left")));
+    if (wrongSide.length) {
+      sideSlips++;
+      const m = wrongSide[0];
+      flash("Right character, wrong side: " + esc(want) + " gets the " + (m.endsWith("Left") ? "left " : "right ") + (m.startsWith("Shift") ? "Shift" : "Option") + ", on the other hand from the one that types it.", true);
+    } else flash("");
+    if (keystrokes % 10 === 0) renderTrouble();
+    if (pos >= text.length) { renderPrompt(); updateStats(); renderTrouble(); finish(); return; }
+  } else {
+    errors++; ks.e++;
+    const pk = want + ">" + got; stats.pairs[pk] = (stats.pairs[pk] || 0) + 1; saveStats(); renderTrouble();
+    const gi = charInfo[got], wi = charInfo[want];
+    if (e.getModifierState && e.getModifierState("CapsLock") && got.toLowerCase() === want.toLowerCase()) flash("Caps Lock is on. Press it once to turn it off.");
+    else if (gi && wi && gi.k === wi.k) flash("Right key. " + (modsFor(want).length ? esc(want) + " needs " + modWords(want) + ": " + how(want, true) + "." : "Let go of " + modWords(got) + "."));
+    else flash("You pressed " + esc(show(got)) + ". " + esc(show(want)) + ": " + how(want, true) + ".");
+    const cur = document.querySelector("#prompt .cur"); if (cur) { cur.classList.add("err"); }
+    const bad = gi && document.querySelector('.key[data-k="' + CSS.escape(gi.k) + '"]'); if (bad) { bad.classList.add("pressbad"); setTimeout(() => bad.classList.remove("pressbad"), 250); }
+    updateStats(); return;
+  }
+  renderPrompt(); updateTargets(); updateStats();
+});
+
+$("startbtn").onclick = () => startLesson(0);
+$("nextbtn").onclick = () => startLesson(lesson + 1);
+$("restartbtn").onclick = () => { startLesson(lesson); };
+$("retrybtn").onclick = () => startLesson(lesson);
+$("hideguide").onchange = e => { $("guide").classList.toggle("guide", e.target.checked); document.body.classList.toggle("guide", e.target.checked); };
+$("lang").onchange = e => { try { localStorage.setItem("tft-lang", e.target.value); } catch (x) {} if (!$("setup").classList.contains("show")) startLesson(lesson); };
+$("len").oninput = e => { $("lenval").textContent = e.target.value; };
+$("len").onchange = e => { finalLen = +e.target.value; try { localStorage.setItem("tft-len", finalLen); } catch (x) {} e.target.blur(); startLesson(lesson); };
+$("level").onchange = e => { finalLevel = +e.target.value; try { localStorage.setItem("tft-level-" + layout, finalLevel); } catch (x) {} e.target.blur(); startLesson(lesson); };
+$("layout").onchange = e => { layout = e.target.value; try { localStorage.setItem("tft-layout", layout); } catch (x) {} init(); };
+
+function init() {
+  loadStats(); buildCharInfo(); buildKeyboard(); buildHands();
+  let saved = 0;
+  try { saved = +localStorage.getItem("tft-level-" + layout) || 0; } catch (e) {}
+  finalLevel = Math.min(LEVELS.length, Math.max(1, saved || defaultLevel()));
+  renderLevels(); renderLessons();
+  const first = Object.keys(progress).filter(k => k.startsWith(layout + ":")).length === 0;
+  if (first) { lesson = 0; text = ""; showSetup(); return; }
+  // continue at the first lesson not passed yet, or the final test once everything is
+  const defs = lessonDefs();
+  const i = defs.findIndex((d, j) => !d.final && stars(j) < 1);
+  startLesson(i < 0 ? defs.length - 1 : i);
+}
+try { layout = localStorage.getItem("tft-layout") || "fi"; } catch (e) {}
+$("layout").value = layout;
+try { $("lang").value = localStorage.getItem("tft-lang") || "both"; } catch (e) {}
+try { finalLen = Math.min(500, Math.max(150, +localStorage.getItem("tft-len") || 300)); } catch (e) {}
+$("len").value = finalLen; $("lenval").textContent = finalLen;
+init();
+</script>
+</body>
+</html>
