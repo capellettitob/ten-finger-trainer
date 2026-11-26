@@ -119,7 +119,7 @@
     <h1>Ten Finger Trainer</h1>
     <div class="opts">
       <label>Keyboard
-        <select id="layout"><option value="fi">Finnish (ö ä å)</option><option value="us">US</option></select>
+        <select id="layout"><option value="fipc">Finnish, PC (Windows)</option><option value="fi">Finnish, Mac</option><option value="us">US</option></select>
       </label>
       <label>Words
         <select id="lang"><option value="both">Finnish and English</option><option value="fi">Finnish</option><option value="en">English</option></select>
@@ -160,7 +160,7 @@
       <div class="handwrap"><div class="hand" id="hl"><div class="palm"></div></div><div class="handlabel">Left hand</div></div>
       <div class="handwrap"><div class="hand" id="hr"><div class="palm"></div></div><div class="handlabel">Right hand</div></div>
     </div>
-    <div class="spacebar-note">Both thumbs rest above the space bar. Either one hits it. Shift and Option are always held by the other hand.</div>
+    <div class="spacebar-note" id="spacenote"></div>
   </div>
 
   <div class="card" id="stats">
@@ -193,10 +193,22 @@ const FINGERS = {
   rr: {name: "right ring finger",   c: "var(--rr)", hand: "r", idx: 3},
   rp: {name: "right pinky", c: "var(--rp)", hand: "r", idx: 4},
 };
-const LAYOUTS = { fi: { pinkyHome: "ö" }, us: { pinkyHome: ";" } };
+const LAYOUTS = { fi: { pinkyHome: "ö" }, fipc: { pinkyHome: "ö" }, us: { pinkyHome: ";" } };
 // Each key is a string of what it types: base, Shift, Option, Shift and Option (a space means nothing).
 // Letters get their capital from Shift on their own. The Finnish rows were read from macOS "Finnish Extended" (2026-11-04).
+// fipc is the standard PC Finnish layout (Windows, also ChromeOS and Linux): the third character is AltGr,
+// which exists only as the right Alt key, so the right thumb always holds it (altGr: true).
 const KEYMAPS = {
+  fipc: {
+    rows: [
+      ["§½", "1!", "2\"@", "3#£", "4¤$", "5%", "6&", "7/{", "8([", "9)]", "0=}", "+?\\", "´`"],
+      ["q", "w", "eE€", ..."rtyuiopå", "¨^"],
+      [..."asdfghjklöä", "'*"],
+      ["<>|", ..."zxcvbnm", ",;", ".:", "-_"],
+    ],
+    fingers: ["lp lp lr lm li li li ri rm rr rp rp rp", "lp lr lm li li ri ri rm rr rp rp rp", "lp lr lm li li ri ri rm rr rp rp rp", "lp lp lr lm li li ri ri rm rr rp"],
+    shiftL: 1.25, dead: "´¨", altGr: true,
+  },
   fi: {
     rows: [
       ["§°", "1!", "2\"@", "3#", "4€$", "5%", "6&", "7/|\\", "8([{", "9)]}", "0=", "+?", "´"],
@@ -239,13 +251,15 @@ const isUpper = ch => ch !== ch.toLowerCase();
 function modsFor(ch) {
   const i = charInfo[ch]; if (!i || ch === " ") return [];
   const side = FINGERS[i.f].hand === "l" ? "Right" : "Left";
-  return [...(i.shift ? ["Shift" + side] : []), ...(i.opt ? ["Alt" + side] : [])];
+  return [...(i.shift ? ["Shift" + side] : []), ...(i.opt ? [KEYMAPS[layout].altGr ? "AltRight" : "Alt" + side] : [])];
 }
+const altName = () => KEYMAPS[layout].altGr ? "AltGr" : "Option";
+const modName = m => m.startsWith("Shift") ? "Shift" : altName();
 const fingersFor = ch => ch === " " ? ["lt", "rt"] : charInfo[ch] ? [charInfo[ch].f, ...modsFor(ch).map(m => MODFINGER[m])] : [];
 
 // ---------- lessons: letters first, then capitals, numbers and symbols, one skill at a time ----------
 function lessonDefs() {
-  const fi = layout === "fi";
+  const fi = layout !== "us", pc = layout === "fipc";
   const p = LAYOUTS[layout].pinkyHome;
   const letters = [
     {id: "fj", add: "fj",       name: "Index fingers home",     tip: "F and J have bumps. Feel them."},
@@ -288,15 +302,25 @@ function lessonDefs() {
     {id: "quotes", stage: "Symbols", add: "\"", name: "Quotation marks", tip: "They go around what someone says, or a title."},
     {id: "brackets", stage: "Symbols", add: "()", name: "Brackets ( )", tip: "For side notes (like this one)."},
     {id: "slash-pct", stage: "Symbols", add: "/%", name: fi ? "Slash and percent" : "Percent", tip: "Slash for and/or and km/h, percent after a number."},
-    {id: "money-amp", stage: "Symbols", add: "€&#", name: fi ? "Euro, and sign, hash" : "And sign and hash", tip: fi ? "Three Shift symbols on the left-hand number keys, so the right pinky holds Shift." : "Shift symbols on the number row."},
+    pc ? {id: "money-amp", stage: "Symbols", add: "&#", name: "And sign and hash", tip: "Two Shift symbols on the left-hand number keys, so the right pinky holds Shift."} :
+    {id: "money-amp", stage: "Symbols", add: "€&#", name: fi ? "Euro, and sign, hash" : "And sign and hash", tip: fi ?"Three Shift symbols on the left-hand number keys, so the right pinky holds Shift." : "Shift symbols on the number row."},
     {id: "math", stage: "Symbols", add: "+=*", name: "Math: plus, equals, times",
      tip: fi ? "+ has its own key right of 0. = and * are Shift on right-pinky keys, so the left pinky holds Shift." : "= has its own key; + and * need Shift."},
+    ...(pc ? [
+    {id: "opt-at", stage: "AltGr key", add: "@$€", name: "AltGr key: @ $ €",
+     tip: "New key: AltGr, the right Alt key beside the space bar. Your right thumb holds it, like Shift, while a finger presses the key: @ is AltGr with 2, $ with 4, € with E."},
+    {id: "opt-brackets", stage: "AltGr key", add: "[]{}", name: "Square and curly brackets",
+     tip: "[ ] are AltGr with 8 and 9, { } are AltGr with 7 and 0. The right thumb holds AltGr while your right fingers reach up."},
+    {id: "rare", stage: "AltGr key", add: "<>|\\", name: "The rare ones",
+     tip: "< and > live on the key left of Z (left pinky), and | is AltGr on that same key. \\ is AltGr with the + key (right pinky)."},
+    ] : [
     {id: "opt-at", stage: fi ? "Option key" : "More symbols", add: "@$", name: fi ? "Option key: @ and $" : "@ and $",
      tip: fi ? "New key: Option (alt), next to Cmd beside the space bar. It works like Shift: the other hand's thumb holds it." : "Both are Shift on the number row."},
     {id: "opt-brackets", stage: fi ? "Option key" : "More symbols", add: "[]{}", name: "Square and curly brackets",
      tip: fi ? "[ ] are Option with 8 and 9. { } need Shift and Option together, both held by the left hand." : "[ ] have their own keys right of P; { } are the same keys with Shift."},
     {id: "rare", stage: fi ? "Option key" : "More symbols", add: "<>|\\", name: "The rare ones",
      tip: fi ? "< and > live on the key left of Z (left pinky). | and \\ are Option on 7, \\ with Shift too." : "< > are Shift on comma and period. \\ has its own key, | is Shift on it."},
+    ]),
   ];
   const out = letters.map(d => ({...d, stage: "Letters"}));
   const known = new Set(letters.map(d => d.add).join(""));
@@ -351,7 +375,7 @@ let lastExtra = {weak: [], confs: []};
 function makeProse(allowed, o) {
   const ok = w => [...w].every(ch => allowed.includes(ch));
   const lang = $("lang").value;
-  const useFi = layout === "fi" && lang !== "en", useEn = !(layout === "fi" && lang === "fi");
+  const useFi = layout !== "us" && lang !== "en", useEn = !(layout !== "us" && lang === "fi");
   const words = [...new Set([...(useFi ? WORDS_FI : []), ...(useEn ? WORDS_EN : [])])].filter(w => w.length >= 2 && ok(w));
   const joins = [...(useFi ? JOINED_FI : []), ...(useEn ? JOINED_EN : [])].filter(ok);
   const reach = new Set([...words, ...joins].join(""));
@@ -407,7 +431,7 @@ function richCtx(known) {
   const K = new Set(known + " ");
   const ok = s => [...s].every(ch => K.has(ch));
   const lang = $("lang").value;
-  const useFi = layout === "fi" && lang !== "en", useEn = !(layout === "fi" && lang === "fi");
+  const useFi = layout !== "us" && lang !== "en", useEn = !(layout !== "us" && lang === "fi");
   const pick = a => a[rnd(a.length)];
   const cap = w => w[0].toUpperCase() + w.slice(1);
   const pad = n => String(n).padStart(2, "0");
@@ -599,7 +623,7 @@ function makeDrill(li) {
   const focus = [...new Set([...added, ...weak])].join("");
   const hasNew = w => [...w].some(ch => focus.includes(ch));
   const lang = $("lang").value;
-  const src = (lang === "en" || layout !== "fi") ? WORDS_EN : lang === "fi" ? WORDS_FI : [...WORDS_FI, ...WORDS_EN];
+  const src = (lang === "en" || layout === "us") ? WORDS_EN : lang === "fi" ? WORDS_FI : [...WORDS_FI, ...WORDS_EN];
   let pool = [...new Set(src)].filter(w => w.length >= 2 && isAllowed(w));
   const newPool = pool.filter(hasNew);
   const out = [];
@@ -673,11 +697,11 @@ function how(ch, html) {
   if (ch === " ") return "either thumb on the space bar";
   const i = charInfo[ch];
   if (!i) return "a key this keyboard doesn't have";
-  const parts = modsFor(ch).map(m => f(MODFINGER[m]) + " holds " + (m.startsWith("Shift") ? "Shift" : "Option"));
+  const parts = modsFor(ch).map(m => f(MODFINGER[m]) + " holds " + modName(m));
   parts.push(f(i.f) + " presses " + (html ? esc(keyName(i.k)) : keyName(i.k)));
   return parts.join(", ");
 }
-const modWords = ch => modsFor(ch).map(m => m.startsWith("Shift") ? "Shift" : "Option").join(" and ");
+const modWords = ch => modsFor(ch).map(modName).join(" and ");
 function weakKeys(allowed) {
   return Object.entries(stats.keys).filter(([c, v]) => allowed.includes(c) && c !== " " && v.e >= 2 && v.e / v.n >= .1)
     .sort((a, b) => b[1].e - a[1].e).slice(0, 3).map(x => x[0]);
@@ -739,8 +763,8 @@ function buildKeyboard() {
     const fs = m.fingers[r].split(" ");
     row.forEach((key, c) => {
       const k = div("key"); k.dataset.k = key[0]; k.dataset.l = key; paint(k, fs[c]);
-      const letter = key.length === 1 && key.toUpperCase() !== key;
-      k.innerHTML = letter ? esc(key.toUpperCase()) : (key[1] && key[1] !== " " ? '<span class="s">' + esc(key[1]) + "</span>" : "") + esc(key[0])
+      const letter = key[0].toUpperCase() !== key[0];   // a letter key, maybe with an AltGr extra like E with €
+      k.innerHTML = (letter ? esc(key[0].toUpperCase()) : (key[1] && key[1] !== " " ? '<span class="s">' + esc(key[1]) + "</span>" : "") + esc(key[0]))
         + (key.length > 2 ? '<span class="o">' + esc(key.slice(2).replace(/ /g, "")) + "</span>" : "");
       if (m.dead.includes(key[0])) k.classList.add("dead");
       if (key === "f" || key === "j") k.classList.add("home");
@@ -751,7 +775,10 @@ function buildKeyboard() {
   });
   const el = div("row"); el.style.marginLeft = "calc(var(--u) * 2.5)";
   const sp = div("key space"); sp.dataset.k = " "; sp.dataset.l = " "; sp.textContent = "space"; sp.style.width = span(6); paint(sp, "rt");
-  el.append(mod("AltLeft", "option", 1.25), sp, mod("AltRight", "option", 1.25));
+  if (m.altGr) {   // PC: only the right Alt is AltGr; the left Alt types nothing here, so it is dimmed
+    const left = mod("AltLeft", "alt", 1.25); left.classList.add("dead");
+    el.append(left, sp, mod("AltRight", "alt gr", 1.25));
+  } else el.append(mod("AltLeft", "option", 1.25), sp, mod("AltRight", "option", 1.25));
   kb.appendChild(el);
 }
 
@@ -881,7 +908,9 @@ function finish() {
   const pk = layout + ":" + (d.final ? "final:" + finalLevel : d.id);
   if (n > (progress[pk] || 0)) { progress[pk] = n; save(); }
   $("stars").textContent = n ? "★".repeat(n) + "☆".repeat(3 - n) : "☆☆☆";
-  const side = sideSlips ? " Shift or Option on the wrong side " + sideSlips + (sideSlips === 1 ? " time" : " times") + ": the other hand holds it." : "";
+  const side = sideSlips ? (KEYMAPS[layout].altGr
+    ? " Wrong Shift or Alt " + sideSlips + (sideSlips === 1 ? " time" : " times") + ": Shift goes on the other hand, AltGr is the right thumb."
+    : " Shift or Option on the wrong side " + sideSlips + (sideSlips === 1 ? " time" : " times") + ": the other hand holds it.") : "";
   $("resulttext").textContent = (n
     ? wpm + " wpm at " + acc + "% accuracy. " + (n === 3 ? "Clean run." : "Good. Aim for 98% for three stars.") + (d.final ? " Press New text for a fresh run." : " Next lesson is open.")
     : wpm + " wpm at " + acc + "% accuracy. Under 90%: slow down until every key is right, then try again.") + side;
@@ -918,7 +947,9 @@ document.addEventListener("keydown", e => {
     if (wrongSide.length) {
       sideSlips++;
       const m = wrongSide[0];
-      flash("Right character, wrong side: " + esc(want) + " gets the " + (m.endsWith("Left") ? "left " : "right ") + (m.startsWith("Shift") ? "Shift" : "Option") + ", on the other hand from the one that types it.", true);
+      flash(m.startsWith("Alt") && KEYMAPS[layout].altGr
+        ? "Right character, wrong key: " + esc(want) + " needs AltGr, the right Alt key, held by your right thumb."
+        : "Right character, wrong side: " + esc(want) + " gets the " + (m.endsWith("Left") ? "left " : "right ") + modName(m) + ", on the other hand from the one that types it.", true);
     } else flash("");
     if (keystrokes % 10 === 0) renderTrouble();
     if (pos >= text.length) { renderPrompt(); updateStats(); renderTrouble(); finish(); return; }
@@ -949,6 +980,9 @@ $("layout").onchange = e => { layout = e.target.value; try { localStorage.setIte
 
 function init() {
   loadStats(); buildCharInfo(); buildKeyboard(); buildHands();
+  $("spacenote").textContent = "Both thumbs rest above the space bar. Either one hits it. " + (KEYMAPS[layout].altGr
+    ? "Shift is always held by the other hand. AltGr, the right Alt key, is always held by the right thumb."
+    : "Shift and Option are always held by the other hand.");
   let saved = 0;
   try { saved = +localStorage.getItem("tft-level-" + layout) || 0; } catch (e) {}
   finalLevel = Math.min(LEVELS.length, Math.max(1, saved || defaultLevel()));
@@ -960,7 +994,10 @@ function init() {
   const i = defs.findIndex((d, j) => !d.final && stars(j) < 1);
   startLesson(i < 0 ? defs.length - 1 : i);
 }
-try { layout = localStorage.getItem("tft-layout") || "fi"; } catch (e) {}
+// first visit: a Mac gets the Mac layout, any other computer (Windows, Chromebook, Linux) the PC one
+const isMac = /Mac/i.test(navigator.platform || navigator.userAgent || "");
+layout = isMac ? "fi" : "fipc";
+try { const s = localStorage.getItem("tft-layout"); if (KEYMAPS[s]) layout = s; } catch (e) {}
 $("layout").value = layout;
 try { $("lang").value = localStorage.getItem("tft-lang") || "both"; } catch (e) {}
 try { finalLen = Math.min(500, Math.max(150, +localStorage.getItem("tft-len") || 300)); } catch (e) {}

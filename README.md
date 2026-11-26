@@ -6,7 +6,7 @@ Learn to type with all ten fingers, right in the browser.
 
 - A colored keyboard shows which finger owns each key, and the hands below light up the finger to use next.
 - Lessons go one skill at a time: home row, the rest of the letters, capitals, numbers, then symbols, and finally real text.
-- Finnish or US keyboard, Finnish or English words.
+- Finnish PC (Windows, Chromebook), Finnish Mac or US keyboard, picked for your computer on the first visit. Finnish or English words.
 - Your progress and your weak keys are saved in your own browser. Nothing is sent anywhere.
 - Needs a real keyboard (a laptop or desktop, not a phone or tablet).
 
